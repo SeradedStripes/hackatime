@@ -6,9 +6,19 @@ module LanguageUtils
       base = YAML.load_file(Rails.root.join("config/languages.yml"))
       custom_path = Rails.root.join("config/languages_custom.yml")
       custom = File.exist?(custom_path) ? YAML.load_file(custom_path) : {}
-      base.deep_merge(custom) { |_key, base_val, custom_val|
+      merged = base.deep_merge(custom) { |_key, base_val, custom_val|
         base_val.is_a?(Array) && custom_val.is_a?(Array) ? base_val | custom_val : custom_val
       }
+      custom.each do |name, info|
+        next unless info.key?("extensions")
+        info["extensions"].each do |ext|
+          merged.each do |other_name, other_info|
+            next if other_name == name
+            other_info["extensions"]&.delete(ext)
+          end
+        end
+      end
+      merged
     end
   end
 
