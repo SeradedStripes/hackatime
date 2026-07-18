@@ -11,7 +11,8 @@ module LanguageUtils
       }
       custom.each do |name, info|
         next unless info.key?("extensions")
-        info["extensions"].each do |ext|
+        merged_extensions = merged.dig(name, "extensions") || []
+        merged_extensions.each do |ext|
           merged.each do |other_name, other_info|
             next if other_name == name
             other_info["extensions"]&.delete(ext)
