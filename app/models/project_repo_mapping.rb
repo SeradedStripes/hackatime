@@ -23,11 +23,17 @@ class ProjectRepoMapping < ApplicationRecord
   after_update :sync_repository_if_url_changed, if: :repo_url_required?
 
   def repo_url_required? = repo_url.present?
-  def archive! = update_column(:archived_at, Time.current)
-  def unarchive! = update_column(:archived_at, nil)
+  def archive! = update_archive_status(Time.current)
+  def unarchive! = update_archive_status(nil)
   def archived? = archived_at.present?
 
   private
+
+  def update_archive_status(archived_at)
+    update!(archived_at: archived_at)
+    DashboardRollupRefreshJob.schedule_for(user_id, wait: 0.seconds)
+    true
+  end
 
   def repo_host_supported
     host = RepoHost::ServiceFactory.host_for_url(repo_url)

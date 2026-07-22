@@ -55,6 +55,32 @@ class DashboardRollupRefreshServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "excludes archived projects from every rollup dimension" do
+    travel_to Time.utc(2026, 4, 14, 12, 0, 0) do
+      user = User.create!(timezone: "UTC")
+      create_heartbeat(user, "2026-04-14 09:00:00 UTC", project: "active", language: "ruby", editor: "vscode", operating_system: "macos", category: "coding")
+      create_heartbeat(user, "2026-04-14 09:01:00 UTC", project: "active", language: "ruby", editor: "vscode", operating_system: "macos", category: "coding")
+      create_heartbeat(user, "2026-04-14 10:00:00 UTC", project: "archived", language: "python", editor: "zed", operating_system: "linux", category: "coding")
+      create_heartbeat(user, "2026-04-14 10:01:00 UTC", project: "archived", language: "python", editor: "zed", operating_system: "linux", category: "coding")
+      create_heartbeat(user, "2026-04-14 11:00:00 UTC", project: nil, language: "go", editor: "vim", operating_system: "linux", category: "coding")
+      user.project_repo_mappings.create!(project_name: "archived").archive!
+
+      DashboardRollupRefreshService.new(user: user).call
+
+      total_row = DashboardRollup.find_by!(user: user, dimension: DashboardRollup::TOTAL_DIMENSION)
+      filter_options = DashboardRollup.find_by!(user: user, dimension: DashboardRollup::FILTER_OPTIONS_DIMENSION).payload
+      today_stats = DashboardRollup.find_by!(user: user, dimension: DashboardRollup::TODAY_STATS_DIMENSION).payload
+
+      assert_equal 180, total_row.total_seconds
+      assert_equal 3, total_row.source_heartbeats_count
+      assert_equal [ "active" ], filter_options["project"]
+      assert_equal [ "go", "ruby" ], filter_options["language"]
+      assert_equal 180, today_stats["todays_duration_seconds"]
+      assert_equal [ "active" ], DashboardRollup.where(user: user, dimension: "project").pluck(:bucket_value)
+      assert_equal [ "go", "ruby" ], DashboardRollup.where(user: user, dimension: "language").order(:bucket_value).pluck(:bucket_value)
+    end
+  end
+
   private
 
   def create_heartbeat(user, timestamp, project:, language:, editor:, operating_system:, category:)
