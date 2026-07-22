@@ -329,6 +329,33 @@ class DashboardStatsTest < ActiveSupport::TestCase
     end
   end
 
+  test "dashboard aggregates and filter options exclude archived projects" do
+    with_memory_cache_store do
+      Rails.cache.clear
+
+      user = User.create!(timezone: "UTC")
+      travel_to Time.utc(2026, 4, 14, 12, 0, 0) do
+        create_heartbeat_at(user, "2026-04-14 09:00:00 UTC", project: "active", language: "ruby", editor: "vscode", operating_system: "macos", category: "coding")
+        create_heartbeat_at(user, "2026-04-14 09:01:00 UTC", project: "active", language: "ruby", editor: "vscode", operating_system: "macos", category: "coding")
+        create_heartbeat_at(user, "2026-04-14 10:00:00 UTC", project: "archived", language: "python", editor: "zed", operating_system: "linux", category: "coding")
+        create_heartbeat_at(user, "2026-04-14 10:01:00 UTC", project: "archived", language: "python", editor: "zed", operating_system: "linux", category: "coding")
+      end
+      user.project_repo_mappings.create!(project_name: "archived").archive!
+
+      stats = build_stats(user, params: { interval: "custom", from: "2026-04-14", to: "2026-04-14" })
+      def stats.rollups_available? = false
+
+      result = stats.filterable_dashboard_data
+
+      assert_equal 60, result[:total_time]
+      assert_equal 2, result[:total_heartbeats]
+      assert_equal [ "active" ], result[:project]
+      assert_equal [ "Ruby" ], result[:language]
+      assert_equal "active", result["top_project"]
+      assert_equal "Ruby", result["top_language"]
+    end
+  end
+
   test "top operating system uses the same display buckets as operating system stats" do
     with_memory_cache_store do
       Rails.cache.clear

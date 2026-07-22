@@ -4,7 +4,7 @@ class DashboardRollupRefreshService < ApplicationService
 
   def initialize(user:)
     @user = user
-    @scope = user.heartbeats
+    @scope = user.heartbeats_excluding_archived_projects
   end
 
   def call

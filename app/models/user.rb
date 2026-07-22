@@ -289,6 +289,10 @@ class User < ApplicationRecord
   def active_remote_heartbeat_import_run? = heartbeat_import_runs.remote_imports.active_imports.exists?
   def activity_graph_cache_key(timezone = self.timezone) = "user_#{id}_daily_durations_#{timezone}"
 
+  def heartbeats_excluding_archived_projects
+    heartbeats.where(project: nil).or(heartbeats.where.not(project: project_repo_mappings.archived.select(:project_name)))
+  end
+
   def format_extension_text(duration)
     case hackatime_extension_text_type
     when "simple_text"
